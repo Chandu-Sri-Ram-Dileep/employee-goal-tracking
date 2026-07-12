@@ -1,0 +1,524 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  EMPLOYEE
+  MANAGER
+  ADMIN
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ManagerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum GoalSheetStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  RETURNED
+  LOCKED
+}
+
+enum GoalStatus {
+  NOT_STARTED
+  ON_TRACK
+  COMPLETED
+}
+
+enum UOMType {
+  NUMERIC
+  PERCENTAGE
+  TIMELINE
+  ZERO_BASED
+}
+
+enum CheckinStatus {
+  PENDING
+  APPROVED
+  RETURNED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+model User {
+  id String @id @default(cuid())
+
+  name     String
+  email    String @unique
+  password String
+
+  profilePhoto String?
+
+  role Role
+
+  employee Employee?
+  manager  Manager?
+
+  auditLogs AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Employee {
+  id String @id @default(cuid())
+
+  employeeCode String @unique
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  managerId String?
+  manager   Manager? @relation(fields: [managerId], references: [id])
+
+  department  String
+  designation String
+
+  gender Gender
+
+  phone   String?
+  address String?
+
+  status EmployeeStatus @default(ACTIVE)
+
+  profile EmployeeProfile?
+
+  goalSheets     GoalSheet[]
+  unlockRequests GoalUnlockRequest[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+}
+
+model Manager {
+  id String @id @default(cuid())
+
+  managerCode String @unique
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  department String
+
+  gender Gender
+
+  phone   String?
+  address String?
+  status  ManagerStatus   @default(ACTIVE)
+  profile ManagerProfile?
+
+  employees      Employee[]
+  unlockRequests GoalUnlockRequest[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+}
+
+model EmployeeProfile {
+  id String @id @default(cuid())
+
+  employeeId String   @unique
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  summary String?
+
+  totalExperience Float?
+
+  linkedinUrl  String?
+  githubUrl    String?
+  portfolioUrl String?
+
+  educations       Education[]
+  projects         EmployeeProject[]
+  certifications   Certification[]
+  responsibilities PositionOfResponsibility[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model ManagerProfile {
+  id String @id @default(cuid())
+
+  managerId String  @unique
+  manager   Manager @relation(fields: [managerId], references: [id], onDelete: Cascade)
+
+  summary String?
+
+  totalExperience Float?
+
+  linkedinUrl String?
+
+  educations       ManagerEducation[]
+  projects         ManagerProject[]
+  certifications   ManagerCertification[]
+  responsibilities ManagerPositionOfResponsibility[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Education {
+  id String @id @default(cuid())
+
+  profileId String
+  profile   EmployeeProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  qualification String
+  institution   String
+
+  specialization String?
+
+  score String?
+
+  startYear Int?
+  endYear   Int?
+
+  createdAt DateTime @default(now())
+}
+
+model EmployeeProject {
+  id String @id @default(cuid())
+
+  profileId String
+  profile   EmployeeProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  title String
+
+  description String
+
+  technologies String
+
+  githubUrl String?
+  liveUrl   String?
+
+  startDate DateTime?
+  endDate   DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+model Certification {
+  id String @id @default(cuid())
+
+  profileId String
+  profile   EmployeeProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  name String
+
+  provider String
+
+  issueDate DateTime?
+
+  credentialUrl String?
+
+  createdAt DateTime @default(now())
+}
+
+model PositionOfResponsibility {
+  id String @id @default(cuid())
+
+  profileId String
+  profile   EmployeeProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  title String
+
+  organization String
+
+  description String?
+
+  startDate DateTime?
+  endDate   DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+model ManagerEducation {
+  id String @id @default(cuid())
+
+  profileId String
+  profile   ManagerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  qualification String
+  institution   String
+
+  specialization String?
+
+  score String?
+
+  startYear Int?
+  endYear   Int?
+
+  createdAt DateTime @default(now())
+}
+
+model ManagerProject {
+  id String @id @default(cuid())
+
+  profileId String
+  profile   ManagerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  title String
+
+  description String
+
+  technologies String
+
+  githubUrl String?
+  liveUrl   String?
+
+  startDate DateTime?
+  endDate   DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+model ManagerCertification {
+  id String @id @default(cuid())
+
+  profileId String
+  profile   ManagerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  name String
+
+  provider String
+
+  issueDate DateTime?
+
+  credentialUrl String?
+
+  createdAt DateTime @default(now())
+}
+
+model ManagerPositionOfResponsibility {
+  id String @id @default(cuid())
+
+  profileId String
+  profile   ManagerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  title String
+
+  organization String
+
+  description String?
+
+  startDate DateTime?
+  endDate   DateTime?
+
+  createdAt DateTime @default(now())
+}
+
+enum UnlockRequestStatus {
+  PENDING_MANAGER
+  PENDING_ADMIN
+  APPROVED
+  REJECTED
+}
+
+model GoalUnlockRequest {
+  id String @id @default(cuid())
+
+  goalSheetId String
+  goalSheet   GoalSheet @relation(fields: [goalSheetId], references: [id])
+
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  managerId String?
+  manager   Manager? @relation(fields: [managerId], references: [id])
+
+  reason String
+
+  status UnlockRequestStatus @default(PENDING_MANAGER)
+
+  managerRemarks String?
+  adminRemarks   String?
+
+  requestedAt DateTime @default(now())
+
+  reviewedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model GoalSheet {
+  id String @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id])
+
+  cycleId String
+  cycle   GoalCycle @relation(fields: [cycleId], references: [id])
+
+  status GoalSheetStatus @default(DRAFT)
+
+  isLocked Boolean @default(false)
+
+  submittedAt         DateTime?
+  approvedAt          DateTime?
+  approvedByManagerId String?
+  goals               Goal[]
+  unlockRequests      GoalUnlockRequest[]
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  managerRemarks      String?
+}
+
+model Goal {
+  id String @id @default(cuid())
+
+  goalSheetId String
+  goalSheet   GoalSheet @relation(fields: [goalSheetId], references: [id])
+
+  title       String
+  description String
+
+  thrustArea String
+
+  uom UOMType
+
+  target      Float
+  achievement Float @default(0)
+
+  weightage Int
+
+  status GoalStatus @default(NOT_STARTED)
+
+  progress Int @default(0)
+
+  managerFeedback String?
+
+  checkins Checkin[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Checkin {
+  id String @id @default(cuid())
+
+  goalId String
+  goal   Goal   @relation(fields: [goalId], references: [id])
+
+  achievement Float
+
+  employeeComment String
+
+  managerFeedback String?
+
+  status CheckinStatus @default(PENDING)
+  goalStatus GoalStatus?
+
+  submittedAt DateTime @default(now())
+
+  reviewedAt DateTime?
+}
+
+enum GoalCycleStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+enum CheckinPeriod {
+  Q1
+  Q2
+  Q3
+  Q4
+}
+
+model GoalCycle {
+  id String @id @default(cuid())
+
+  name String
+
+  description String?
+
+  startDate DateTime
+  endDate   DateTime
+
+  goalOpenDate  DateTime
+  goalCloseDate DateTime
+
+  status GoalCycleStatus @default(DRAFT)
+
+  isActive Boolean @default(false)
+
+  goalSheets GoalSheet[]
+
+  checkinWindows CheckinWindow[]
+
+  createdBy String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CheckinWindow {
+  id String @id @default(cuid())
+
+  cycleId String
+
+  cycle GoalCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+
+  period CheckinPeriod
+
+  openDate DateTime
+
+  closeDate DateTime
+
+  createdAt DateTime @default(now())
+
+  @@unique([cycleId, period])
+}
+
+model SharedGoal {
+  id String @id @default(cuid())
+
+  title       String
+  description String
+
+  thrustArea String
+
+  uom UOMType
+
+  target Float
+
+  weightage Int
+
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+
+  action String
+
+  entityType String
+
+  entityId String
+
+  remarks String?
+
+  createdAt DateTime @default(now())
+}

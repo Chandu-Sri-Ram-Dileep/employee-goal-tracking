@@ -1,0 +1,4 @@
+index
+register
+remove
+errors
