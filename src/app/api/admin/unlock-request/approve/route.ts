@@ -1,10 +1,20 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/getCurrentUser";
 
 export async function PUT(
   req: Request
 ) {
   try {
+    const user = await getCurrentUser();
+
+    if (!user || user.role !== "ADMIN") {
+      return NextResponse.json(
+        { message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const body =
       await req.json();
 
@@ -72,8 +82,7 @@ export async function PUT(
 
     await prisma.auditLog.create({
       data: {
-        userId:
-          request.employee.userId,
+        userId: user.id,
 
         action:
           "UNLOCK_REQUEST_ADMIN_APPROVED",

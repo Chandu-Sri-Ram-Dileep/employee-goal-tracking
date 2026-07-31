@@ -26,6 +26,8 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  TablePagination,
+  InputAdornment,
   Tooltip,
   TextField,
   Typography,
@@ -34,6 +36,13 @@ import {
 import EditIcon from "@mui/icons-material/Edit";
 import PersonOffIcon from "@mui/icons-material/PersonOff";
 import PersonOnIcon from "@mui/icons-material/Person";
+import SearchIcon from "@mui/icons-material/Search";
+import DownloadIcon from "@mui/icons-material/Download";
+import PictureAsPdfIcon from "@mui/icons-material/PictureAsPdf";
+import VisibilityIcon from "@mui/icons-material/Visibility";
+import { exportToCsv } from "@/lib/exportCsv";
+import { exportToPdf } from "@/lib/exportPdf";
+import ManagerDetailModal from "@/components/common/ManagerDetailModal";
 
 interface Employee {
   id: string;
@@ -91,400 +100,245 @@ const emptyManager = {
 };
 
 export default function ManagersPage() {
-  const [managers, setManagers] =
-    useState<Manager[]>([]);
-
-  const [loading, setLoading] =
-    useState(true);
-
-  const [open, setOpen] =
-    useState(false);
-
-  const [isEditMode, setIsEditMode] =
-    useState(false);
-
-  const [snackbarMessage, setSnackbarMessage] =
-    useState("");
-
-  const [editingManager, setEditingManager] =
-    useState<any>(emptyManager);
-
-  const [
-    generatedCredentials,
-    setGeneratedCredentials,
-  ] = useState<{
+  const [managers, setManagers] = useState<Manager[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState("");
+  const [editingManager, setEditingManager] = useState<any>(emptyManager);
+  const [generatedCredentials, setGeneratedCredentials] = useState<{
     managerCode: string;
     temporaryPassword: string;
   } | null>(null);
 
-  const [
-    credentialsOpen,
-    setCredentialsOpen,
-  ] = useState(false);
+  const [credentialsOpen, setCredentialsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [page, setPage] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [detailModalId, setDetailModalId] = useState<string | null>(null);
 
-  const fetchManagers =
-    async () => {
-      try {
-        const response =
-          await fetch(
-            "/api/admin/managers"
-          );
-
-        const data =
-          await response.json();
-
+  const fetchManagers = async () => {
+    try {
+      const response = await fetch("/api/admin/managers");
+      const data = await response.json();
+      if (response.ok && Array.isArray(data)) {
         setManagers(data);
-      } catch (error) {
-        console.error(error);
+      } else {
+        setManagers([]);
       }
-    };
+    } catch (error) {
+      console.error(error);
+      setManagers([]);
+    }
+  };
 
   useEffect(() => {
-    const loadData =
-      async () => {
-        setLoading(true);
-
-        await fetchManagers();
-
-        setLoading(false);
-      };
-
-      loadData();
+    fetchManagers().finally(() => setLoading(false));
   }, []);
 
   const handleCreate = () => {
-    setEditingManager(
-      emptyManager
-    );
-
+    setEditingManager(emptyManager);
     setIsEditMode(false);
-
     setOpen(true);
   };
 
-  const handleEdit = (
-    manager: Manager
-  ) => {
+  const handleEdit = (manager: Manager) => {
     setEditingManager({
       id: manager.id,
-
-      name:
-        manager.user.name,
-
-      email:
-        manager.user.email,
-
-      department:
-        manager.department,
-
-      gender:
-        manager.gender,
-
-      phone:
-        manager.phone || "",
-
-      address:
-        manager.address || "",
-
-      status:
-        manager.status,
+      name: manager.user.name,
+      email: manager.user.email,
+      department: manager.department,
+      gender: manager.gender,
+      phone: manager.phone || "",
+      address: manager.address || "",
     });
 
     setIsEditMode(true);
-
     setOpen(true);
   };
-    const handleSave =
-    async () => {
-      try {
-        if (
-          isEditMode
-        ) {
-          const response =
-            await fetch(
-              "/api/admin/managers/update",
-              {
-                method: "PUT",
 
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
+  const handleSave = async () => {
+    try {
+      if (isEditMode) {
+        const response = await fetch("/api/admin/managers/update", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            managerId: editingManager.id,
+            name: editingManager.name,
+            email: editingManager.email,
+            department: editingManager.department,
+            gender: editingManager.gender,
+            phone: editingManager.phone,
+            address: editingManager.address,
+            status: "ACTIVE",
+          }),
+        });
 
-                body: JSON.stringify({
-                  managerId:
-                    editingManager.id,
-
-                  name:
-                    editingManager.name,
-
-                  email:
-                    editingManager.email,
-
-                  department:
-                    editingManager.department,
-
-                  gender:
-                    editingManager.gender,
-
-                  phone:
-                    editingManager.phone,
-
-                  address:
-                    editingManager.address,
-
-                  status:
-                    editingManager.status,
-                }),
-              }
-            );
-
-          const data =
-            await response.json();
-
-          if (
-            !response.ok
-          ) {
-            alert(
-              data.message
-            );
-            return;
-          }
-
-          setSnackbarMessage(
-            "Manager updated successfully"
-          );
-        } else {
-          const response =
-            await fetch(
-              "/api/admin/managers/create",
-              {
-                method: "POST",
-
-                headers: {
-                  "Content-Type":
-                    "application/json",
-                },
-
-                body: JSON.stringify({
-                  name:
-                    editingManager.name,
-
-                  email:
-                    editingManager.email,
-
-                  department:
-                    editingManager.department,
-
-                  gender:
-                    editingManager.gender,
-
-                  phone:
-                    editingManager.phone,
-
-                  address:
-                    editingManager.address,
-                }),
-              }
-            );
-
-          const data =
-            await response.json();
-
-          if (
-            !response.ok
-          ) {
-            alert(
-              data.message
-            );
-            return;
-          }
-
-          setGeneratedCredentials(
-            {
-              managerCode:
-                data.managerCode,
-
-              temporaryPassword:
-                data.temporaryPassword,
-            }
-          );
-
-          setCredentialsOpen(
-            true
-          );
-
-          setSnackbarMessage(
-            "Manager created successfully"
-          );
-        }
-
-        setOpen(false);
-
-        fetchManagers();
-      } catch (
-        error
-      ) {
-        console.error(
-          error
-        );
-
-        alert(
-          "Something went wrong"
-        );
-      }
-    };
-
-  const toggleStatus =
-    async (
-      manager: Manager
-    ) => {const actionText = manager.status === "ACTIVE" ? "deactivate" : "activate";
-  
-  const confirmed = window.confirm(
-    `Are you sure you want to ${actionText} this manager?`
-  );
-
-  if (!confirmed) return;
-
-      try {
-       const nextStatus =
-      manager.status ===
-      "ACTIVE"
-        ? "INACTIVE"
-        : "ACTIVE";
-
-
-        const response =
-          await fetch(
-             "/api/admin/managers/deactivate",
-            {
-              method: "PUT",
-
-              headers: {
-                "Content-Type":
-                  "application/json",
-              },
-
-              body: JSON.stringify({
-                managerId:
-                  manager.id,
-                   status:
-              nextStatus,
-              }),
-            }
-          );
-
-        const data =
-          await response.json();
-
-        if (
-          !response.ok
-        ) {
-          alert(
-            data.message
-          );
+        const data = await response.json();
+        if (!response.ok) {
+          alert(data.message || "Update failed");
           return;
         }
 
-        fetchManagers();
-      } catch (
-        error
-      ) {
-        console.error(
-          error
-        );
+        await fetchManagers();
+        setOpen(false);
+        setSnackbarMessage("Manager updated successfully");
+        return;
       }
-    };
 
-  const copyText =
-    async (
-      text: string
-    ) => {
-      try {
-        await navigator.clipboard.writeText(
-          text
-        );
+      const response = await fetch("/api/admin/managers/create", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editingManager.name,
+          email: editingManager.email,
+          department: editingManager.department,
+          gender: editingManager.gender,
+          phone: editingManager.phone,
+          address: editingManager.address,
+        }),
+      });
 
-        setSnackbarMessage(
-          "Copied to clipboard"
-        );
-      } catch (
-        error
-      ) {
-        console.error(
-          error
-        );
+      const data = await response.json();
+      if (!response.ok) {
+        alert(data.message || "Creation failed");
+        return;
       }
-    };
+
+      setGeneratedCredentials({
+        managerCode: data.manager.managerCode,
+        temporaryPassword: data.temporaryPassword,
+      });
+
+      setCredentialsOpen(true);
+      setOpen(false);
+      await fetchManagers();
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  const toggleStatus = async (manager: Manager) => {
+    try {
+      const endpoint =
+        manager.status === "ACTIVE"
+          ? "/api/admin/managers/deactivate"
+          : "/api/admin/managers/activate";
+
+      const response = await fetch(endpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ managerId: manager.id }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        alert(data.message || "Status change failed");
+        return;
+      }
+
+      await fetchManagers();
+      setSnackbarMessage(
+        manager.status === "ACTIVE"
+          ? "Manager deactivated successfully"
+          : "Manager activated successfully"
+      );
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   return (
     <Box>
-      <Typography
-        variant="h4"
-        gutterBottom
-      >
+      <Typography variant="h4" gutterBottom sx={{ fontWeight: 800 }}>
         Manager Management
       </Typography>
 
-      <Alert
-        severity="info"
-        sx={{
-          mb: 3,
-        }}
-      >
-        Create managers,
-        assign employees,
-        manage status and
-        maintain manager
-        profiles.
+      <Alert severity="info" sx={{ mb: 3 }}>
+        Create managers, assign employees, view team execution analytics, and manage manager profiles.
       </Alert>
 
-      <Box
-        sx={{
-          display:
-            "flex",
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3, flexWrap: "wrap", gap: 1 }}>
+        <Typography variant="h6">Total Managers: {managers.length}</Typography>
 
-          justifyContent:
-            "space-between",
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+          <Tooltip title="Export as CSV">
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<DownloadIcon />}
+              onClick={() =>
+                exportToCsv(
+                  "managers",
+                  managers.map((m) => ({
+                    Code: m.managerCode,
+                    Name: m.user.name,
+                    Email: m.user.email,
+                    Department: m.department,
+                    Status: m.status,
+                    TeamSize: m.employees.length,
+                  }))
+                )
+              }
+            >
+              CSV
+            </Button>
+          </Tooltip>
+          <Tooltip title="Export as PDF">
+            <Button
+              variant="outlined"
+              size="small"
+              color="error"
+              startIcon={<PictureAsPdfIcon />}
+              onClick={() =>
+                exportToPdf(
+                  "Manager_Directory",
+                  managers.map((m) => ({
+                    Code: m.managerCode,
+                    Name: m.user.name,
+                    Email: m.user.email,
+                    Department: m.department,
+                    Status: m.status,
+                    TeamSize: m.employees.length,
+                  }))
+                )
+              }
+            >
+              PDF
+            </Button>
+          </Tooltip>
+          <Button variant="contained" onClick={handleCreate}>
+            Add Manager
+          </Button>
+        </Box>
+      </Box>
 
-          alignItems:
-            "center",
-
-          mb: 3,
-        }}
-      >
-        <Typography
-          variant="h6"
-        >
-          Total Managers:
-          {" "}
-          {
-            managers.length
-          }
-        </Typography>
-
-        <Button
-          variant="contained"
-          onClick={
-            handleCreate
-          }
-        >
-          Add Manager
-        </Button>
+      {/* Search Bar */}
+      <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
+        <TextField
+          placeholder="Search by code, name, email, department..."
+          value={searchTerm}
+          onChange={(e) => {
+            setSearchTerm(e.target.value);
+            setPage(0);
+          }}
+          size="small"
+          fullWidth
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            },
+          }}
+        />
       </Box>
 
       {loading ? (
-        <Box
-          sx={{
-            display:
-              "flex",
-
-            justifyContent:
-              "center",
-
-            mt: 5,
-          }}
-        >
+        <Box sx={{ display: "flex", justifyContent: "center", mt: 5 }}>
           <CircularProgress />
         </Box>
       ) : (
@@ -492,521 +346,148 @@ export default function ManagersPage() {
           <Table>
             <TableHead>
               <TableRow>
-                <TableCell>
-                  Manager
-                  Code
-                </TableCell>
-
-                <TableCell>
-                  Name
-                </TableCell>
-
-                <TableCell>
-                  Email
-                </TableCell>
-
-                <TableCell>
-                  Department
-                </TableCell>
-
-                <TableCell>
-                  Gender
-                </TableCell>
-
-                <TableCell>
-                  Phone
-                </TableCell>
-
-                <TableCell>
-                  Employees
-                </TableCell>
-
-                <TableCell>
-                  Status
-                </TableCell>
-
-                <TableCell>
-                  Created
-                </TableCell>
-
-                <TableCell>
-                  Actions
-                </TableCell>
+                <TableCell>Manager Code</TableCell>
+                <TableCell>Name</TableCell>
+                <TableCell>Email</TableCell>
+                <TableCell>Department</TableCell>
+                <TableCell>Gender</TableCell>
+                <TableCell>Phone</TableCell>
+                <TableCell>Employees</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Actions</TableCell>
               </TableRow>
             </TableHead>
 
             <TableBody>
-              {managers.map(
-                (
-                  manager
-                ) => (
-                  <TableRow
-                    key={
-                      manager.id
-                    }
-                  >
+              {managers
+                .filter((mgr) => {
+                  if (!searchTerm) return true;
+                  const term = searchTerm.toLowerCase();
+                  return (
+                    mgr.managerCode.toLowerCase().includes(term) ||
+                    mgr.user.name.toLowerCase().includes(term) ||
+                    mgr.user.email.toLowerCase().includes(term) ||
+                    mgr.department.toLowerCase().includes(term)
+                  );
+                })
+                .slice(page * rowsPerPage, (page + 1) * rowsPerPage)
+                .map((manager) => (
+                  <TableRow key={manager.id} hover>
+                    <TableCell sx={{ fontWeight: 600 }}>{manager.managerCode}</TableCell>
                     <TableCell>
-                      {
-                        manager.managerCode
-                      }
-                    </TableCell>
-
-                    <TableCell>
-                      <Link
-                        href={`/admin/managers/${manager.id}`}
-                        style={{
-                          textDecoration:
-                            "none",
-
-                          color:
-                            "#1976d2",
-
-                          fontWeight:
-                            600,
-                        }}
+                      <Box
+                        component="span"
+                        onClick={() => setDetailModalId(manager.id)}
+                        sx={{ color: "warning.main", fontWeight: 700, cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
                       >
-                        {
-                          manager
-                            .user
-                            .name
-                        }
-                      </Link>
+                        {manager.user.name}
+                      </Box>
                     </TableCell>
-
+                    <TableCell>{manager.user.email}</TableCell>
+                    <TableCell>{manager.department}</TableCell>
+                    <TableCell>{manager.gender}</TableCell>
+                    <TableCell>{manager.phone || "N/A"}</TableCell>
                     <TableCell>
-                      {
-                        manager
-                          .user
-                          .email
-                      }
+                      <Chip label={`${manager.employees?.length ?? 0} Direct Reports`} size="small" variant="outlined" color="primary" />
                     </TableCell>
-
                     <TableCell>
-                      {
-                        manager.department
-                      }
+                      <Chip label={manager.status} color={manager.status === "ACTIVE" ? "success" : "error"} size="small" />
                     </TableCell>
-
-                    <TableCell>
-                      {
-                        manager.gender
-                      }
-                    </TableCell>
-
-                    <TableCell>
-                      {manager.phone ||
-                        "-"}
-                    </TableCell>
-                                        <TableCell>
-                      {manager
-                        .employees
-                        .length ===
-                      0 ? (
-                        "-"
-                      ) : (
-                        <Box>
-                          {manager.employees.map(
-                            (
-                              employee
-                            ) => (
-                              <Box
-                                key={
-                                  employee.id
-                                }
-                              >
-                                <Link
-                                  href={`/admin/employees/${employee.id}`}
-                                  style={{
-                                    textDecoration:
-                                      "none",
-                                    color:
-                                      "#1976d2",
-                                  }}
-                                >
-                                  {
-                                    employee
-                                      .user
-                                      .name
-                                  }
-                                </Link>
-                              </Box>
-                            )
-                          )}
-                        </Box>
-                      )}
-                    </TableCell>
-
-                    <TableCell>
-                      <Chip
-                        label={
-                          manager.status
-                        }
-                        color={
-                          manager.status ===
-                          "ACTIVE"
-                            ? "success"
-                            : "error"
-                        }
-                      />
-                    </TableCell>
-
-                    <TableCell>
-                      {new Date(
-                        manager.createdAt
-                      ).toLocaleDateString()}
-                    </TableCell>
-
-                    <TableCell>
+                    <TableCell sx={{ whiteSpace: "nowrap" }}>
+                      <Tooltip title="View Full Manager Profile & Team History">
+                        <IconButton color="info" onClick={() => setDetailModalId(manager.id)}>
+                          <VisibilityIcon />
+                        </IconButton>
+                      </Tooltip>
                       <Tooltip title="Edit Manager">
-                        <IconButton
-                          color="primary"
-                          onClick={() =>
-                            handleEdit(
-                              manager
-                            )
-                          }
-                        >
+                        <IconButton color="primary" onClick={() => handleEdit(manager)}>
                           <EditIcon />
                         </IconButton>
                       </Tooltip>
-
-                      <Tooltip
-                        title={
-                          manager.status ===
-                          "ACTIVE"
-                            ? "Deactivate"
-                            : "Activate"
-                        }
-                      >
-                        <IconButton
-                          color={
-                            manager.status ===
-                            "ACTIVE"
-                              ? "error"
-                              : "success"
-                          }
-                          onClick={() =>
-                            toggleStatus(
-                              manager
-                            )
-                          }
-                        >
-                          {manager.status ===
-                          "ACTIVE" ? (
-                            <PersonOffIcon />
-                          ) : (
-                            <PersonOnIcon />
-                          )}
+                      <Tooltip title={manager.status === "ACTIVE" ? "Deactivate Manager" : "Activate Manager"}>
+                        <IconButton color={manager.status === "ACTIVE" ? "error" : "success"} onClick={() => toggleStatus(manager)}>
+                          {manager.status === "ACTIVE" ? <PersonOffIcon /> : <PersonOnIcon />}
                         </IconButton>
                       </Tooltip>
                     </TableCell>
                   </TableRow>
-                )
-              )}
+                ))}
             </TableBody>
           </Table>
+
+          <TablePagination
+            rowsPerPageOptions={[5, 10, 25, 50]}
+            component="div"
+            count={
+              managers.filter((mgr) => {
+                if (!searchTerm) return true;
+                const term = searchTerm.toLowerCase();
+                return (
+                  mgr.managerCode.toLowerCase().includes(term) ||
+                  mgr.user.name.toLowerCase().includes(term) ||
+                  mgr.user.email.toLowerCase().includes(term) ||
+                  mgr.department.toLowerCase().includes(term)
+                );
+              }).length
+            }
+            rowsPerPage={rowsPerPage}
+            page={page}
+            onPageChange={(_, newPage) => setPage(newPage)}
+            onRowsPerPageChange={(e) => {
+              setRowsPerPage(parseInt(e.target.value, 10));
+              setPage(0);
+            }}
+          />
         </Paper>
       )}
 
-      <Dialog
-        open={open}
-        onClose={() =>
-          setOpen(false)
-        }
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>
-          {isEditMode
-            ? "Edit Manager"
-            : "Create Manager"}
-        </DialogTitle>
-
+      {/* Edit / Create Dialog */}
+      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>{isEditMode ? "Edit Manager" : "Add New Manager"}</DialogTitle>
         <DialogContent>
-          <Box
-            sx={{
-              display:
-                "grid",
-              gridTemplateColumns:
-                "1fr 1fr",
-              gap: 2,
-              mt: 2,
-            }}
-          >
-            <TextField
-              label="Name"
-              value={
-                editingManager.name
-              }
-              onChange={(e) =>
-                setEditingManager({
-                  ...editingManager,
-                  name:
-                    e.target.value,
-                })
-              }
-            />
-
-            <TextField
-              label="Email"
-              value={
-                editingManager.email
-              }
-              onChange={(e) =>
-                setEditingManager({
-                  ...editingManager,
-                  email:
-                    e.target.value,
-                })
-              }
-            />
-
-            <TextField
-              label="Department"
-              value={
-                editingManager.department
-              }
-              onChange={(e) =>
-                setEditingManager({
-                  ...editingManager,
-                  department:
-                    e.target.value,
-                })
-              }
-            />
-
-            <FormControl
-              fullWidth
-            >
-              <InputLabel>
-                Gender
-              </InputLabel>
-
-              <Select
-                label="Gender"
-                value={
-                  editingManager.gender
-                }
-                onChange={(e) =>
-                  setEditingManager({
-                    ...editingManager,
-                    gender:
-                      e.target.value,
-                  })
-                }
-              >
-                <MenuItem value="MALE">
-                  Male
-                </MenuItem>
-
-                <MenuItem value="FEMALE">
-                  Female
-                </MenuItem>
-
-                <MenuItem value="OTHER">
-                  Other
-                </MenuItem>
-              </Select>
-            </FormControl>
-
-            <TextField
-              label="Phone"
-              value={
-                editingManager.phone
-              }
-              onChange={(e) =>
-                setEditingManager({
-                  ...editingManager,
-                  phone:
-                    e.target.value,
-                })
-              }
-            />
-
-            <TextField
-              label="Address"
-              multiline
-              rows={3}
-              value={
-                editingManager.address
-              }
-              onChange={(e) =>
-                setEditingManager({
-                  ...editingManager,
-                  address:
-                    e.target.value,
-                })
-              }
-            />
-
-            {/* {isEditMode && (
-              <FormControl
-                fullWidth
-              >
-                <InputLabel>
-                  Status
-                </InputLabel>
-
-                <Select
-                  label="Status"
-                  value={
-                    editingManager.status
-                  }
-                  onChange={(e) =>
-                    setEditingManager({
-                      ...editingManager,
-                      status:
-                        e.target
-                          .value,
-                    })
-                  }
-                >
-                  <MenuItem value="ACTIVE">
-                    ACTIVE
-                  </MenuItem>
-
-                  <MenuItem value="INACTIVE">
-                    INACTIVE
-                  </MenuItem>
-                </Select>
-              </FormControl>
-            )} */}
-          </Box>
+          <TextField fullWidth margin="normal" label="Full Name" value={editingManager.name} onChange={(e) => setEditingManager({ ...editingManager, name: e.target.value })} />
+          <TextField fullWidth margin="normal" label="Email" value={editingManager.email} onChange={(e) => setEditingManager({ ...editingManager, email: e.target.value })} disabled={isEditMode} />
+          <TextField fullWidth margin="normal" label="Department" value={editingManager.department} onChange={(e) => setEditingManager({ ...editingManager, department: e.target.value })} />
+          <FormControl fullWidth margin="normal">
+            <InputLabel>Gender</InputLabel>
+            <Select value={editingManager.gender} label="Gender" onChange={(e) => setEditingManager({ ...editingManager, gender: e.target.value })}>
+              <MenuItem value="MALE">Male</MenuItem>
+              <MenuItem value="FEMALE">Female</MenuItem>
+              <MenuItem value="OTHER">Other</MenuItem>
+            </Select>
+          </FormControl>
+          <TextField fullWidth margin="normal" label="Phone" value={editingManager.phone} onChange={(e) => setEditingManager({ ...editingManager, phone: e.target.value })} />
+          <TextField fullWidth margin="normal" label="Address" value={editingManager.address} onChange={(e) => setEditingManager({ ...editingManager, address: e.target.value })} />
         </DialogContent>
-
         <DialogActions>
-          <Button
-            onClick={() =>
-              setOpen(false)
-            }
-          >
-            Cancel
-          </Button>
-
-          <Button
-            variant="contained"
-            onClick={
-              handleSave
-            }
-          >
-            {isEditMode
-              ? "Update"
-              : "Create"}
-          </Button>
+          <Button onClick={() => setOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleSave}>{isEditMode ? "Update" : "Save"}</Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog
-        open={
-          credentialsOpen
-        }
-        onClose={() =>
-          setCredentialsOpen(
-            false
-          )
-        }
-      >
-        <DialogTitle>
-          Manager Created
-        </DialogTitle>
-
+      {/* Credentials Dialog */}
+      <Dialog open={credentialsOpen} onClose={() => setCredentialsOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Manager Created Successfully</DialogTitle>
         <DialogContent>
-          <Typography>
-            Save these
-            credentials.
+          <Typography variant="body2" sx={{ mb: 2 }}>
+            Share these generated credentials with the new manager:
           </Typography>
-
-          <Box
-            sx={{
-              mt: 2,
-            }}
-          >
-            <Typography>
-              <strong>
-                Manager
-                Code:
-              </strong>{" "}
-              {
-                generatedCredentials?.managerCode
-              }
-            </Typography>
-
-            <Button
-              size="small"
-              onClick={() =>
-                copyText(
-                  generatedCredentials?.managerCode ||
-                    ""
-                )
-              }
-            >
-              Copy Code
-            </Button>
-          </Box>
-
-          <Box
-            sx={{
-              mt: 2,
-            }}
-          >
-            <Typography>
-              <strong>
-                Password:
-              </strong>{" "}
-              {
-                generatedCredentials?.temporaryPassword
-              }
-            </Typography>
-
-            <Button
-              size="small"
-              onClick={() =>
-                copyText(
-                  generatedCredentials?.temporaryPassword ||
-                    ""
-                )
-              }
-            >
-              Copy Password
-            </Button>
-          </Box>
-          <Alert
-                    severity="warning"
-                    sx={{ mt: 2 }}
-                  >
-                    Save this password.
-                    It will not be shown
-                    again.
-                  </Alert>
+          {generatedCredentials && (
+            <Box sx={{ bgcolor: "action.hover", p: 2, borderRadius: 2 }}>
+              <Typography variant="subtitle2">Manager Code: <strong>{generatedCredentials.managerCode}</strong></Typography>
+              <Typography variant="subtitle2" sx={{ mt: 1 }}>Temporary Password: <strong>{generatedCredentials.temporaryPassword}</strong></Typography>
+            </Box>
+          )}
         </DialogContent>
-
         <DialogActions>
-          <Button
-            variant="contained"
-            onClick={() =>
-              setCredentialsOpen(
-                false
-              )
-            }
-          >
-            OK
-          </Button>
+          <Button variant="contained" onClick={() => setCredentialsOpen(false)}>Done</Button>
         </DialogActions>
       </Dialog>
-     <Snackbar
-  open={snackbarMessage !== ""}
-  autoHideDuration={3000}
-  onClose={() => setSnackbarMessage("")}
-  anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
-  sx={{ marginTop: '64px' }} 
->
-  <Alert
-    severity="success"
-    onClose={() => setSnackbarMessage("")}
-  >
-    {snackbarMessage}
-  </Alert>
-</Snackbar>
+
+      {/* Manager Detail Modal */}
+      <ManagerDetailModal managerId={detailModalId} open={Boolean(detailModalId)} onClose={() => setDetailModalId(null)} />
+
+      <Snackbar open={Boolean(snackbarMessage)} autoHideDuration={3000} onClose={() => setSnackbarMessage("")} message={snackbarMessage} />
     </Box>
   );
 }

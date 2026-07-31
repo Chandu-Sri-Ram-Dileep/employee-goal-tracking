@@ -1,4 +1,1 @@
-index
-register
-remove
-errors
+export const GoalRow = () => null;

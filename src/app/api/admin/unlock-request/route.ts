@@ -1,8 +1,18 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getCurrentUser } from "@/lib/getCurrentUser";
 
 export async function GET() {
   try {
+    const user = await getCurrentUser();
+
+    if (!user || user.role !== "ADMIN") {
+      return NextResponse.json(
+        { message: "Unauthorized" },
+        { status: 401 }
+      );
+    }
+
     const requests =
       await prisma.goalUnlockRequest.findMany({
         where: {

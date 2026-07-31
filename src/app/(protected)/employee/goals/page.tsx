@@ -20,7 +20,11 @@ import {
   Paper,
   Stack,
   TextField,
+  Tooltip,
   Typography,
+  Select,
+  FormControl,
+  InputLabel,
 } from "@mui/material";
 
 import LockIcon from "@mui/icons-material/Lock";
@@ -28,6 +32,11 @@ import LockOpenIcon from "@mui/icons-material/LockOpen";
 import AssignmentIcon from "@mui/icons-material/Assignment";
 import TrackChangesIcon from "@mui/icons-material/TrackChanges";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import DeleteIcon from "@mui/icons-material/Delete";
+import AddIcon from "@mui/icons-material/Add";
+import DownloadIcon from "@mui/icons-material/Download";
+
+import { exportToCsv } from "@/lib/exportCsv";
 
 type GoalSheetStatus =
   | "DRAFT"
@@ -111,6 +120,10 @@ export default function GoalsPage() {
   const [goalSheetId, setGoalSheetId] =
     useState("");
 
+  const [cycles, setCycles] = useState<any[]>([]);
+  const [selectedCycle, setSelectedCycle] = useState("");
+  const [createSheetDialog, setCreateSheetDialog] = useState(false);
+
   const totalWeightage =
     goals.reduce(
       (
@@ -145,8 +158,29 @@ export default function GoalsPage() {
     sheetStatus === "APPROVED" ||
     sheetStatus === "LOCKED";
 
+  const loadCycles = async () => {
+    try {
+      const response = await fetch("/api/employee/goal-cycles");
+      if (!response.ok) {
+        console.error("Failed to fetch cycles:", response.status);
+        return;
+      }
+      const data = await response.json();
+      // Guard: API must return an array; on error it returns an object
+      if (Array.isArray(data)) {
+        setCycles(data);
+      } else {
+        setCycles([]);
+      }
+    } catch (error) {
+      console.error(error);
+      setCycles([]);
+    }
+  };
+
   useEffect(() => {
     loadGoalSheet();
+    loadCycles();
   }, []);
 
   const loadGoalSheet =
@@ -196,20 +230,6 @@ export default function GoalsPage() {
       }
     };
 
-  // const updateGoal = (
-  //   index: number,
-  //   field: keyof Goal,
-  //   value: any
-  // ) => {
-  //   const updated = [...goals];
-
-  //   updated[index] = {
-  //     ...updated[index],
-  //     [field]: value,
-  //   };
-
-  //   setGoals(updated);
-  // };
   const updateGoal = (
   goalId: string,
   field: keyof Goal,
@@ -276,29 +296,6 @@ export default function GoalsPage() {
     ]);
   };
 
-  // const deleteGoal = (
-  //   index:number
-  // ) => {
-  //   const goal =
-  //     goals[index];
-
-  //   if (
-  //     goal.goalType ===
-  //     "SHARED"
-  //   ) {
-  //     alert(
-  //       "Shared goals cannot be deleted"
-  //     );
-  //     return;
-  //   }
-
-  //   setGoals(
-  //     goals.filter(
-  //       (_, i) =>
-  //         i !== index
-  //     )
-  //   );
-  // };
   const deleteGoal = (
   goalId: string
 ) => {
@@ -321,39 +318,7 @@ export default function GoalsPage() {
     )
   );
 };
-  // const saveDraft =
-  //   async () => {
-  //     try {
-  //       const response =
-  //         await fetch(
-  //           "/api/employee/goals/save",
-  //           {
-  //             method: "POST",
-  //             headers: {
-  //               "Content-Type":
-  //                 "application/json",
-  //             },
-  //             body: JSON.stringify({
-  //               goals,
-  //             }),
-  //           }
-  //         );
-
-  //       if (!response.ok) {
-  //         alert(
-  //           "Failed to save draft"
-  //         );
-  //         return;
-  //       }
-
-  //       alert(
-  //         "Draft saved successfully"
-  //       );
-  //     } catch (error) {
-  //       console.error(error);
-  //     }
-  //   };
-const saveDraft = async () => {
+  const saveDraft = async () => {
   try {
     const response = await fetch(
       "/api/employee/goals/save",
@@ -383,45 +348,6 @@ const saveDraft = async () => {
     console.error(error);
   }
 };
-  // const submitGoalSheet =
-  //   async () => {
-  //     if (
-  //       totalWeightage !==
-  //       100
-  //     ) {
-  //       alert(
-  //         "Total weightage must equal 100%"
-  //       );
-  //       return;
-  //     }
-
-  //     try {
-  //       const response =
-  //         await fetch(
-  //           "/api/employee/goals/submit",
-  //           {
-  //             method: "PUT",
-  //           }
-  //         );
-
-  //       if (!response.ok) {
-  //         alert(
-  //           "Failed to submit goals"
-  //         );
-  //         return;
-  //       }
-
-  //       setSheetStatus(
-  //         "SUBMITTED"
-  //       );
-
-  //       alert(
-  //         "Goal Sheet submitted successfully"
-  //       );
-  //     } catch (error) {
-  //       console.error(error);
-  //     }
-  //   };
   const submitGoalSheet = async () => {
   if (totalWeightage !== 100) {
     alert("Total weightage must equal 100%");
@@ -503,6 +429,57 @@ const saveDraft = async () => {
         alert("An unexpected error occurred. Please try again.");
       }
     };
+
+  const handleExportCsv = () => {
+    const rows = goals.map((g, i) => ({
+      "#": i + 1,
+      "Cycle": cycleName,
+      "Type": g.goalType,
+      "Title": g.title,
+      "Thrust Area": g.thrustArea,
+      "UOM": g.uom,
+      "Target": g.target,
+      "Weightage (%)": g.weightage,
+      "Achievement": g.achievement ?? "",
+      "Progress (%)": g.progress ?? "",
+      "Status": g.status ?? "",
+      "Manager Feedback": g.managerFeedback ?? "",
+      "Sheet Status": sheetStatus,
+    }));
+    exportToCsv(`goal_sheet_${cycleName.replace(/\s/g, "_")}`, rows);
+  };
+
+  const createGoalSheet = async () => {
+    if (!selectedCycle) {
+      alert("Please select a goal cycle");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/employee/goal-sheet", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ cycleId: selectedCycle }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.message || "Failed to create goal sheet");
+        return;
+      }
+
+      setCreateSheetDialog(false);
+      setSelectedCycle("");
+      alert("Goal sheet created successfully");
+      loadGoalSheet();
+    } catch (error) {
+      console.error(error);
+      alert("An unexpected error occurred. Please try again.");
+    }
+  };
 
   return (
     <Box>
@@ -749,27 +726,33 @@ const saveDraft = async () => {
         )}
       </Paper>
 
-     <Stack 
-  direction="row" 
-  spacing={2} 
-  sx={{ mb: 4 }}
->
+      <Stack
+        direction="row"
+        spacing={2}
+        sx={{ mb: 4, flexWrap: "wrap" }}
+      >
+        {cycles.length > 0 && (
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={() => setCreateSheetDialog(true)}
+          >
+            Create New Goal Sheet
+          </Button>
+        )}
+
         {canEdit && (
           <>
             <Button
               variant="contained"
-              onClick={
-                addGoal
-              }
+              onClick={addGoal}
             >
               Add Goal
             </Button>
 
             <Button
               variant="outlined"
-              onClick={
-                saveDraft
-              }
+              onClick={saveDraft}
             >
               Save Draft
             </Button>
@@ -777,31 +760,35 @@ const saveDraft = async () => {
             <Button
               color="success"
               variant="contained"
-              onClick={
-                submitGoalSheet
-              }
+              onClick={submitGoalSheet}
             >
-              Submit To
-              Manager
+              Submit To Manager
             </Button>
           </>
         )}
 
         {canRequestUnlock && (
           <Button
-            startIcon={
-              <LockOpenIcon />
-            }
+            startIcon={<LockOpenIcon />}
             color="warning"
             variant="contained"
-            onClick={() =>
-              setUnlockDialog(
-                true
-              )
-            }
+            onClick={() => setUnlockDialog(true)}
           >
             Request Unlock
           </Button>
+        )}
+
+        {goals.length > 0 && (
+          <Tooltip title="Download goal sheet as CSV">
+            <Button
+              variant="outlined"
+              color="secondary"
+              startIcon={<DownloadIcon />}
+              onClick={handleExportCsv}
+            >
+              Export CSV
+            </Button>
+          </Tooltip>
         )}
       </Stack>
             <Grid
@@ -867,7 +854,7 @@ const saveDraft = async () => {
                             )
                           }
                         >
-                          {/* <DeleteIcon /> */}
+                          <DeleteIcon />
                         </IconButton>
                       )}
                     </Stack>
@@ -1210,6 +1197,45 @@ const saveDraft = async () => {
             }
           >
             Submit Request
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={createSheetDialog}
+        onClose={() => setCreateSheetDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Create New Goal Sheet</DialogTitle>
+        <DialogContent>
+          <Typography sx={{ mb: 2 }}>
+            Select a goal cycle to create a new goal sheet for that cycle.
+          </Typography>
+          <FormControl fullWidth>
+            <InputLabel>Goal Cycle</InputLabel>
+            <Select
+              value={selectedCycle}
+              label="Goal Cycle"
+              onChange={(e) => setSelectedCycle(e.target.value)}
+            >
+              {cycles.map((cycle) => (
+                <MenuItem key={cycle.id} value={cycle.id}>
+                  {cycle.name} ({new Date(cycle.startDate).toLocaleDateString()} - {new Date(cycle.endDate).toLocaleDateString()})
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCreateSheetDialog(false)}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={createGoalSheet}
+          >
+            Create
           </Button>
         </DialogActions>
       </Dialog>

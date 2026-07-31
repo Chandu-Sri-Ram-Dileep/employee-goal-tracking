@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   Box,
@@ -12,61 +13,37 @@ import {
   Paper,
   TextField,
   Typography,
+  CircularProgress,
+  Skeleton,
 } from "@mui/material";
 
 interface UnlockRequest {
-  requestId: string;
-  employeeName: string;
-  department: string;
-  goalSheetId: string;
+  id: string;
+  employee: {
+    user: {
+      name: string;
+    };
+    department: string;
+  };
+  goalSheet: {
+    id: string;
+    cycle: {
+      name: string;
+    };
+  };
   reason: string;
-  requestedDate: string;
+  requestedAt: string;
   status:
-    | "PENDING"
+    | "PENDING_MANAGER"
+    | "PENDING_ADMIN"
     | "APPROVED"
     | "REJECTED";
+  managerRemarks?: string;
+  adminRemarks?: string;
 }
 
-const mockRequests: UnlockRequest[] = [
-  {
-    requestId: "UR001",
-
-    employeeName: "John Doe",
-
-    department: "Sales",
-
-    goalSheetId: "GS001",
-
-    reason:
-      "Need to revise revenue target after management discussion.",
-
-    requestedDate: "2026-06-15",
-
-    status: "PENDING",
-  },
-
-  {
-    requestId: "UR002",
-
-    employeeName: "Jane Smith",
-
-    department: "Engineering",
-
-    goalSheetId: "GS002",
-
-    reason:
-      "Weightage distribution needs correction.",
-
-    requestedDate: "2026-06-15",
-
-    status: "PENDING",
-  },
-];
-
 export default function UnlockRequestsPage() {
-  const [requests, setRequests] =
-    useState(mockRequests);
-
+  const queryClient = useQueryClient();
   const [selectedRequest, setSelectedRequest] =
     useState<UnlockRequest | null>(
       null
@@ -78,96 +55,71 @@ export default function UnlockRequestsPage() {
   const [adminComments, setAdminComments] =
     useState("");
 
+  const { data: requests = [], isLoading } = useQuery({
+    queryKey: ["admin-unlock-requests"],
+    queryFn: async () => {
+      const response = await fetch("/api/admin/unlock-request");
+      const data = await response.json();
+      return data;
+    },
+  });
+
+  const approveMutation = useMutation({
+    mutationFn: async (data: { requestId: string; remarks: string }) => {
+      const response = await fetch("/api/admin/unlock-request/approve", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-unlock-requests"] });
+      setOpen(false);
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async (data: { requestId: string; remarks: string }) => {
+      const response = await fetch("/api/admin/unlock-request/reject", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-unlock-requests"] });
+      setOpen(false);
+    },
+  });
+
   const handleReview = (
     request: UnlockRequest
   ) => {
     setSelectedRequest(request);
+    setAdminComments("");
     setOpen(true);
   };
 
   const handleApprove = async () => {
     if (!selectedRequest) return;
-
-    /*
-    ======================================
-
-    PUT /api/admin/unlock-request/{id}/approve
-
-    Request
-
-    {
-      comments:
-      adminComments
-    }
-
-    Backend Actions
-
-    1. Mark request APPROVED
-
-    2. Unlock Goal Sheet
-
-    UPDATE goal_sheet
-    SET locked = false
-
-    ======================================
-    */
-
-    console.log(
-      "APPROVE REQUEST",
-      selectedRequest
-    );
-
-    setRequests((prev) =>
-      prev.map((req) =>
-        req.requestId ===
-        selectedRequest.requestId
-          ? {
-              ...req,
-              status: "APPROVED",
-            }
-          : req
-      )
-    );
-
-    setOpen(false);
+    approveMutation.mutate({
+      requestId: selectedRequest.id,
+      remarks: adminComments,
+    });
   };
 
   const handleReject = async () => {
     if (!selectedRequest) return;
-
-    /*
-    ======================================
-
-    PUT /api/admin/unlock-request/{id}/reject
-
-    Request
-
-    {
-      comments:
-      adminComments
-    }
-
-    ======================================
-    */
-
-    console.log(
-      "REJECT REQUEST",
-      selectedRequest
-    );
-
-    setRequests((prev) =>
-      prev.map((req) =>
-        req.requestId ===
-        selectedRequest.requestId
-          ? {
-              ...req,
-              status: "REJECTED",
-            }
-          : req
-      )
-    );
-
-    setOpen(false);
+    rejectMutation.mutate({
+      requestId: selectedRequest.id,
+      remarks: adminComments,
+    });
   };
 
   return (
@@ -181,83 +133,122 @@ export default function UnlockRequestsPage() {
 
       <Alert
         severity="info"
-        sx={{ mb: 3 }}
+        sx={{ mb: 3, borderRadius: 2 }}
       >
         Admin can unlock approved
         goal sheets for employee
         modifications.
       </Alert>
 
-      {requests.map((request) => (
-        <Paper
-          key={request.requestId}
-          sx={{
-            p: 3,
-            mb: 2,
-            display: "flex",
-            justifyContent:
-              "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Box>
-            <Typography variant="h6">
-              {request.employeeName}
-            </Typography>
-
-            <Typography>
-              Department:
-              {" "}
-              {request.department}
-            </Typography>
-
-            <Typography>
-              Goal Sheet:
-              {" "}
-              {request.goalSheetId}
-            </Typography>
-
-            <Typography>
-              Requested:
-              {" "}
-              {request.requestedDate}
-            </Typography>
-          </Box>
-
-          <Box
+      {isLoading ? (
+        <Box>
+          {[1, 2, 3].map((i) => (
+            <Paper
+              key={i}
+              sx={{
+                p: 3,
+                mb: 2,
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                borderRadius: 2,
+              }}
+            >
+              <Box sx={{ flex: 1 }}>
+                <Skeleton variant="text" width="60%" height={32} sx={{ mb: 1 }} />
+                <Skeleton variant="text" width="40%" height={20} sx={{ mb: 1 }} />
+                <Skeleton variant="text" width="50%" height={20} sx={{ mb: 1 }} />
+                <Skeleton variant="text" width="30%" height={20} />
+              </Box>
+              <Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+                <Skeleton variant="rectangular" width={80} height={32} />
+                <Skeleton variant="rectangular" width={80} height={36} />
+              </Box>
+            </Paper>
+          ))}
+        </Box>
+      ) : requests.length === 0 ? (
+        <Alert severity="info" sx={{ borderRadius: 2 }}>No pending unlock requests</Alert>
+      ) : (
+        requests.map((request: UnlockRequest) => (
+          <Paper
+            key={request.id}
             sx={{
+              p: 3,
+              mb: 2,
               display: "flex",
-              gap: 2,
-              alignItems:
-                "center",
+              justifyContent:
+                "space-between",
+              alignItems: "center",
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "divider",
+              "&:hover": {
+                borderColor: "primary.main",
+              },
             }}
           >
-            <Chip
-              label={request.status}
-              color={
-                request.status ===
-                "APPROVED"
-                  ? "success"
-                  : request.status ===
-                    "REJECTED"
-                  ? "error"
-                  : "warning"
-              }
-            />
+            <Box>
+              <Typography variant="h6" sx={{ fontWeight: 600 }}>
+                {request.employee.user.name}
+              </Typography>
 
-            <Button
-              variant="contained"
-              onClick={() =>
-                handleReview(
-                  request
-                )
-              }
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Department:
+                {" "}
+                {request.employee.department}
+              </Typography>
+
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Goal Sheet:
+                {" "}
+                {request.goalSheet.cycle.name}
+              </Typography>
+
+              <Typography variant="body2" sx={{ color: "text.secondary" }}>
+                Requested:
+                {" "}
+                {new Date(request.requestedAt).toLocaleDateString()}
+              </Typography>
+            </Box>
+
+            <Box
+              sx={{
+                display: "flex",
+                gap: 2,
+                alignItems:
+                  "center",
+              }}
             >
-              Review
-            </Button>
-          </Box>
-        </Paper>
-      ))}
+              <Chip
+                label={request.status}
+                size="small"
+                color={
+                  request.status ===
+                  "APPROVED"
+                    ? "success"
+                    : request.status ===
+                      "REJECTED"
+                    ? "error"
+                    : "warning"
+                }
+              />
+
+              <Button
+                variant="contained"
+                size="small"
+                onClick={() =>
+                  handleReview(
+                    request
+                  )
+                }
+              >
+                Review
+              </Button>
+            </Box>
+          </Paper>
+        ))
+      )}
 
       <Dialog
         open={open}
@@ -275,7 +266,7 @@ export default function UnlockRequestsPage() {
                 Employee:
                 {" "}
                 {
-                  selectedRequest.employeeName
+                  selectedRequest.employee.user.name
                 }
               </Typography>
 
@@ -283,7 +274,7 @@ export default function UnlockRequestsPage() {
                 Department:
                 {" "}
                 {
-                  selectedRequest.department
+                  selectedRequest.employee.department
                 }
               </Typography>
 
@@ -291,9 +282,17 @@ export default function UnlockRequestsPage() {
                 Goal Sheet:
                 {" "}
                 {
-                  selectedRequest.goalSheetId
+                  selectedRequest.goalSheet.cycle.name
                 }
               </Typography>
+
+              {selectedRequest.managerRemarks && (
+                <Typography>
+                  Manager Remarks:
+                  {" "}
+                  {selectedRequest.managerRemarks}
+                </Typography>
+              )}
 
               <Typography
                 sx={{

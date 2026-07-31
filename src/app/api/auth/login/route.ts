@@ -63,8 +63,10 @@ export async function POST(req: Request) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24, // 1 day
+      maxAge: 60 * 60 * 24 * 7, // 7 days — matches JWT expiry
     });
+
+    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
 
     return response;
   } catch (error) {

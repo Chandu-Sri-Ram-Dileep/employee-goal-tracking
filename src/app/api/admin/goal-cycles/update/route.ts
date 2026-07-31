@@ -1,19 +1,22 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+function safeDate(d: string | undefined | null, fallbackDate: Date): Date {
+  if (!d) return fallbackDate;
+  const parsed = new Date(d);
+  return isNaN(parsed.getTime()) ? fallbackDate : parsed;
+}
+
 export async function PUT(req: Request) {
   try {
     const body = await req.json();
 
     const {
       cycleId,
-
       name,
       description,
-
       startDate,
       endDate,
-
       goalOpenDate,
       goalCloseDate,
 
@@ -32,122 +35,85 @@ export async function PUT(req: Request) {
       status,
     } = body;
 
-    const existingCycle =
-      await prisma.goalCycle.findUnique({
-        where: {
-          id: cycleId,
-        },
-
-        include: {
-          checkinWindows: true,
-        },
-      });
+    const existingCycle = await prisma.goalCycle.findUnique({
+      where: { id: cycleId },
+      include: { checkinWindows: true },
+    });
 
     if (!existingCycle) {
-      return NextResponse.json(
-        {
-          message:
-            "Goal Cycle not found",
-        },
-        {
-          status: 404,
-        }
-      );
+      return NextResponse.json({ message: "Goal Cycle not found" }, { status: 404 });
     }
 
-    const cycle =
-      await prisma.goalCycle.update({
-        where: {
-          id: cycleId,
-        },
+    const start = startDate ? new Date(startDate) : existingCycle.startDate;
+    const end = endDate ? new Date(endDate) : existingCycle.endDate;
 
-        data: {
-          name,
-          description,
+    const q1Start = start;
+    const q1End = new Date(start.getTime() + 90 * 24 * 60 * 60 * 1000);
 
-          startDate:
-            new Date(startDate),
+    const q2Start = q1End;
+    const q2End = new Date(start.getTime() + 180 * 24 * 60 * 60 * 1000);
 
-          endDate:
-            new Date(endDate),
+    const q3Start = q2End;
+    const q3End = new Date(start.getTime() + 270 * 24 * 60 * 60 * 1000);
 
-          goalOpenDate:
-            new Date(goalOpenDate),
+    const q4Start = q3End;
+    const q4End = end;
 
-          goalCloseDate:
-            new Date(goalCloseDate),
-
-          status,
-        },
-
-        include: {
-          checkinWindows: true,
-        },
-      });
-
-    await prisma.checkinWindow.deleteMany({
-      where: {
-        cycleId,
+    const cycle = await prisma.goalCycle.update({
+      where: { id: cycleId },
+      data: {
+        name: name ?? existingCycle.name,
+        description: description ?? existingCycle.description,
+        startDate: start,
+        endDate: end,
+        goalOpenDate: goalOpenDate ? new Date(goalOpenDate) : existingCycle.goalOpenDate,
+        goalCloseDate: goalCloseDate ? new Date(goalCloseDate) : existingCycle.goalCloseDate,
+        status: status ?? existingCycle.status,
       },
+      include: { checkinWindows: true },
     });
+
+    // Re-create checkin windows safely
+    await prisma.checkinWindow.deleteMany({ where: { cycleId } });
 
     await prisma.checkinWindow.createMany({
       data: [
         {
           cycleId,
           period: "Q1",
-          openDate:
-            new Date(q1OpenDate),
-          closeDate:
-            new Date(q1CloseDate),
+          openDate: safeDate(q1OpenDate, q1Start),
+          closeDate: safeDate(q1CloseDate, q1End),
         },
-
         {
           cycleId,
           period: "Q2",
-          openDate:
-            new Date(q2OpenDate),
-          closeDate:
-            new Date(q2CloseDate),
+          openDate: safeDate(q2OpenDate, q2Start),
+          closeDate: safeDate(q2CloseDate, q2End),
         },
-
         {
           cycleId,
           period: "Q3",
-          openDate:
-            new Date(q3OpenDate),
-          closeDate:
-            new Date(q3CloseDate),
+          openDate: safeDate(q3OpenDate, q3Start),
+          closeDate: safeDate(q3CloseDate, q3End),
         },
-
         {
           cycleId,
           period: "Q4",
-          openDate:
-            new Date(q4OpenDate),
-          closeDate:
-            new Date(q4CloseDate),
+          openDate: safeDate(q4OpenDate, q4Start),
+          closeDate: safeDate(q4CloseDate, q4End),
         },
       ],
     });
 
     return NextResponse.json({
-      message:
-        "Goal Cycle updated successfully",
-
+      message: "Goal Cycle updated successfully with Q1-Q4 check-in windows",
       cycle,
     });
-  } catch (error) {
-    console.error(error);
-
+  } catch (error: any) {
+    console.error("Update Goal Cycle error:", error);
     return NextResponse.json(
-      {
-        message:
-          "Failed to update Goal Cycle",
-      },
-      {
-        status: 500,
-      }
+      { message: error?.message || "Failed to update Goal Cycle" },
+      { status: 500 }
     );
   }
 }
