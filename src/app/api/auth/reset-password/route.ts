@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@/lib/password";
 
 export async function POST(req: Request) {
   try {
@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "Invalid or expired reset token." }, { status: 400 });
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await hashPassword(newPassword);
 
     await prisma.user.update({
       where: { id: user.id },
@@ -53,7 +53,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ message: "Password reset successful! You can now log in." });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Reset password error:", error);
     return NextResponse.json({ message: "Failed to reset password." }, { status: 500 });
   }

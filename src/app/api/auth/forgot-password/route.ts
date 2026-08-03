@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
-import crypto from "crypto";
+import { hashPassword } from "@/lib/password";
 
 /**
  * POST /api/auth/forgot-password
@@ -9,9 +8,8 @@ import crypto from "crypto";
  * Generates a temporary 12-character password, hashes it, sets it as the
  * user's current password, and records the expiry (24 hours) in AuditLog.
  *
- * In production, wire up nodemailer/SendGrid here.
- * In development, the temp password is returned in the response body for
- * convenient testing — remove that before going live.
+ * Uses Web Crypto API (crypto.getRandomValues) instead of Node.js crypto
+ * for full Vercel serverless / Edge compatibility.
  */
 export async function POST(req: Request) {
   try {
@@ -33,17 +31,21 @@ export async function POST(req: Request) {
       });
     }
 
-    // Generate a secure temp password: 4-hex + hyphen + 4-hex  e.g. "A3F1-92BC"
-    const tempPassword =
-      crypto.randomBytes(2).toString("hex").toUpperCase() +
-      "-" +
-      crypto.randomBytes(2).toString("hex").toUpperCase() +
-      "-" +
-      crypto.randomBytes(2).toString("hex").toUpperCase();
+    // Generate secure temp password using Web Crypto API (Edge-compatible)
+    const toHex = (buf: Uint8Array) =>
+      Array.from(buf)
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("")
+        .toUpperCase();
+
+    const part1 = toHex(crypto.getRandomValues(new Uint8Array(2)));
+    const part2 = toHex(crypto.getRandomValues(new Uint8Array(2)));
+    const part3 = toHex(crypto.getRandomValues(new Uint8Array(2)));
+    const tempPassword = `${part1}-${part2}-${part3}`;
 
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // +24 h
 
-    const hashed = await bcrypt.hash(tempPassword, 10);
+    const hashed = await hashPassword(tempPassword);
 
     // Overwrite user password with hashed temp password
     await prisma.user.update({
@@ -62,23 +64,13 @@ export async function POST(req: Request) {
       },
     });
 
-    // ─── TODO: Replace this console.log with real email delivery ────────────
-    // Example with nodemailer:
-    //   await transporter.sendMail({
-    //     to: user.email,
-    //     subject: "GoalTrack – Your Temporary Password",
-    //     html: `<p>Your temporary password is: <strong>${tempPassword}</strong></p>
-    //            <p>It expires in 24 hours. Log in and change it immediately.</p>`,
-    //   });
     console.log(
       `[DEV] Temporary password for ${user.email}: ${tempPassword} (expires ${expiresAt.toISOString()})`
     );
-    // ────────────────────────────────────────────────────────────────────────
 
     return NextResponse.json({
       message:
         "If an account with that email exists, a temporary password has been sent.",
-      // ⚠️ DEV ONLY — remove before production:
       _devTempPassword: tempPassword,
     });
   } catch (error: unknown) {

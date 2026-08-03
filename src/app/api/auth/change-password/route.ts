@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/getCurrentUser";
-import bcrypt from "bcryptjs";
+import { hashPassword, comparePassword } from "@/lib/password";
 
 export async function POST(req: Request) {
   try {
@@ -28,19 +28,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: "User not found." }, { status: 404 });
     }
 
-    const isMatch = await bcrypt.compare(oldPassword, dbUser.password);
+    const isMatch = await comparePassword(oldPassword, dbUser.password);
     if (!isMatch) {
       return NextResponse.json({ message: "Incorrect current password." }, { status: 400 });
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    const hashedPassword = await hashPassword(newPassword);
 
     await prisma.user.update({
       where: { id: currentUser.id },
       data: { password: hashedPassword },
     });
 
-    // Create Audit Log
     await prisma.auditLog.create({
       data: {
         userId: currentUser.id,
@@ -52,7 +51,7 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json({ message: "Password updated successfully!" });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Change password error:", error);
     return NextResponse.json({ message: "Failed to update password." }, { status: 500 });
   }
