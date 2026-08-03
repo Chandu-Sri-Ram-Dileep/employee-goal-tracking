@@ -90,18 +90,22 @@ export default function NotificationCenter() {
     return () => clearInterval(interval);
   }, [fetchNotifications]);
 
-  const handleOpen = (event: React.MouseEvent<HTMLButtonElement>) => {
-    setAnchorEl(event.currentTarget);
-  };
-
-  const handleClose = () => {
-    setAnchorEl(null);
-  };
-
   const markAllRead = () => {
     const allIds = new Set(notifications.map((n) => n.id));
     setReadIds(allIds);
     saveReadIds(allIds);
+  };
+
+  const handleOpen = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setAnchorEl(event.currentTarget);
+    // Auto-mark all as read when panel is opened
+    if (notifications.length > 0) {
+      markAllRead();
+    }
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
   };
 
   const open = Boolean(anchorEl);
@@ -140,21 +144,20 @@ export default function NotificationCenter() {
         }}
       >
         {/* Header */}
-        {/* <Box sx={{ p: 2, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+        <Box sx={{ p: 2, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#f8fafc" }}>
             Notifications
-          </Typography> */}
-          {/* {unreadCount > 0 && (
-            // <Button
-            //   size="small"
-            //   startIcon={<CheckCircleOutlineIcon sx={{ fontSize: 14 }} />}
-            //   onClick={markAllRead}
-            //   sx={{ color: "#6366f1", fontSize: "0.72rem", textTransform: "none", p: 0.5 }}
-            // >
-            //   Mark all read
-            // </Button>
-          )} */}
-        {/* </Box> */}
+          </Typography>
+          {unreadCount > 0 && (
+            <Button
+              size="small"
+              onClick={markAllRead}
+              sx={{ color: "#6366f1", fontSize: "0.72rem", textTransform: "none", p: 0.5 }}
+            >
+              Mark all read
+            </Button>
+          )}
+        </Box>
         <Divider sx={{ borderColor: "rgba(255,255,255,0.08)" }} />
 
         {/* List */}

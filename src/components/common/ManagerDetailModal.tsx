@@ -89,7 +89,7 @@ export default function ManagerDetailModal({ managerId, open, onClose }: Manager
           </Box>
         ) : (
           <Box sx={{ p: 3, background: "linear-gradient(135deg, #450a0a 0%, #7f1d1d 100%)" }}>
-            <Grid container spacing={2} alignItems="center">
+            <Grid container spacing={2} sx={{ alignItems: "center" }}>
               <Grid size="auto">
                 <Avatar
                   src={data.profilePhoto || undefined}
