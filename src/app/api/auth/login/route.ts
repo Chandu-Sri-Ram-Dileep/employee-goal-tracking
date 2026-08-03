@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const token = generateToken({
+    const token = await generateToken({
       userId: user.id,
       role: user.role,
     });

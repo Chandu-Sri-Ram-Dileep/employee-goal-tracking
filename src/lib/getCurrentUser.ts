@@ -11,7 +11,7 @@ export async function getCurrentUser() {
       return null;
     }
 
-    const payload = verifyToken(token) as { userId: string } | null;
+    const payload = await verifyToken(token) as { userId: string } | null;
 
     if (!payload || !payload.userId) {
       return null;
