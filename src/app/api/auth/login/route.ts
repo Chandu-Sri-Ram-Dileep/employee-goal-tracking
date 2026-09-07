@@ -69,12 +69,12 @@ export async function POST(req: Request) {
     response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate");
 
     return response;
-  } catch (error) {
-    console.error(error);
+  } catch (error: any) {
+    console.error("Login API Error:", error);
 
     return NextResponse.json(
       {
-        message: "Internal Server Error",
+        message: error?.message || "Internal Server Error",
       },
       {
         status: 500,
